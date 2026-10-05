@@ -4,3 +4,5 @@
 
 
 .reorder-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.reorder-actions button{border:0;border-radius:14px;padding:12px;background:#e0f2fe;color:#0369a1;font-size:22px;font-weight:900;line-height:1}.reorder-actions button:active{background:#bae6fd}
+
+.home-icon{display:block;width:40%;max-width:145px;min-width:100px;height:auto;margin:0 auto 14px}.head{padding-top:24px}
