@@ -2,7 +2,14 @@ const SUPABASE_URL="https://lhvbtioqqvvvprdmdhmi.supabase.co";
 const SUPABASE_KEY="sb_publishable_G8_JOzVzUvv1FXmsF31boQ_WbhPFZdS";
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-let store=null,items=[],connected=false,errorMsg='';
+const USER_KEY='spesa_user_name';
+const PALETTE=['#2f6fed','#ea7a12','#8b3fe0','#0d9488','#db2777','#dc2626','#65a30d','#4f46e5'];
+
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+let store=null,items=[],users=[],connected=false,errorMsg='';
+let userName=lsGet(USER_KEY)||'',editingName=!userName;
 
 const STORES={
   eurospin:{name:'EUROSPIN',cls:'euro',kind:'shop',label:'Eurospin'},
@@ -17,10 +24,36 @@ function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function showToast(m){toastText=m;render();clearTimeout(toastTimer);toastTimer=setTimeout(()=>{toastText='';render()},2000)}
 function toast(){return toastText?`<div class="toast">${esc(toastText)}</div>`:''}
 
+/* ---------- utenti e colori ---------- */
+function hashColor(n){let h=0;for(const c of String(n).toLowerCase())h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length]}
+function colorOf(name){
+  if(!name)return null;
+  const u=users.find(x=>x.name.toLowerCase()===String(name).toLowerCase());
+  return u&&/^#[0-9a-f]{6}$/i.test(u.color||'')?u.color:hashColor(name);
+}
+async function loadUsers(){
+  const {data,error}=await db.from('shopping_users').select('name,color,created_at').order('created_at',{ascending:true});
+  if(!error)users=data||[];
+}
+async function saveName(){
+  const e=document.getElementById('username'),v=e&&e.value.trim().slice(0,20);
+  if(!v)return;
+  await loadUsers();
+  let u=users.find(x=>x.name.toLowerCase()===v.toLowerCase());
+  if(!u){
+    const used=new Set(users.map(x=>x.color)),color=PALETTE.find(c=>!used.has(c))||hashColor(v);
+    const {error}=await db.from('shopping_users').insert({name:v,color});
+    if(!error){u={name:v,color};users.push(u)}
+  }
+  userName=u?u.name:v;
+  lsSet(USER_KEY,userName);
+  editingName=false;render();
+}
+
 /* ---------- ordinamento locale (solo supermercati) ---------- */
 function orderKey(s){return 'spesa_local_order_'+s}
-function getOrder(s){try{return JSON.parse(localStorage.getItem(orderKey(s))||'[]').map(Number)}catch(e){return[]}}
-function saveOrder(s,ids){try{localStorage.setItem(orderKey(s),JSON.stringify(ids.map(Number)))}catch(e){}}
+function getOrder(s){try{return JSON.parse(lsGet(orderKey(s))||'[]').map(Number)}catch(e){return[]}}
+function saveOrder(s,ids){lsSet(orderKey(s),JSON.stringify(ids.map(Number)))}
 function orderedList(s){
   const source=items.filter(x=>x.store===s);
   if(isMemo(s))return source.slice().sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
@@ -67,7 +100,11 @@ function pickSuggestion(v){
 
 /* ---------- dati ---------- */
 async function loadItems(){
-  const {data,error}=await db.from('shopping_items').select('id,store,item,checked,created_at').order('created_at',{ascending:true});
+  const [res]=await Promise.all([
+    db.from('shopping_items').select('*').order('created_at',{ascending:true}),
+    loadUsers()
+  ]);
+  const {data,error}=res;
   if(error){errorMsg=error.message;connected=false}else{items=data||[];errorMsg='';connected=true}
   render();
 }
@@ -75,7 +112,11 @@ async function addItem(){
   const e=document.getElementById('newitem'),v=e&&e.value.trim();
   if(!v||!store)return;
   e.value='';
-  const {error}=await db.from('shopping_items').insert({store,item:v,checked:false});
+  let {error}=await db.from('shopping_items').insert({store,item:v,checked:false,added_by:userName||null});
+  if(error&&/added_by/i.test(error.message)){
+    /* colonna non ancora creata su Supabase: salvo comunque la voce */
+    ({error}=await db.from('shopping_items').insert({store,item:v,checked:false}));
+  }
   if(error){errorMsg=error.message;render()}
   const b=document.getElementById('suggestions');if(b)b.style.display='none';
 }
@@ -106,6 +147,21 @@ function status(){
   return `<div class="status ${connected?'ok':'bad'}"><i></i>${connected?'Sincronizzato':esc(errorMsg||'Connessione...')}</div>`;
 }
 
+function meChip(){
+  if(!userName)return '';
+  return `<button class="me" onclick="editingName=true;render()"><i style="background:${colorOf(userName)}"></i>${esc(userName)}<span>cambia</span></button>`;
+}
+
+function nameModal(){
+  return `<div class="overlay"><div class="modal">
+    <h3>${userName?'Cambia nome':'Come ti chiami?'}</h3>
+    <p>Il nome comparirà accanto ai prodotti che aggiungi, con un colore tutto tuo.</p>
+    <input id="username" value="${esc(userName)}" maxlength="20" autocomplete="off" placeholder="Il tuo nome" onkeydown="if(event.key==='Enter')saveName()">
+    <button class="primary" onclick="saveName()">Continua</button>
+    ${userName?'<button class="ghost" onclick="editingName=false;render()">Annulla</button>':''}
+  </div></div>`;
+}
+
 function home(){
   const cards=Object.entries(STORES).map(([id,s])=>{
     const n=isMemo(id)?items.filter(x=>x.store===id).length:items.filter(x=>x.store===id&&!x.checked).length;
@@ -114,18 +170,23 @@ function home(){
       <div><div class="brand">${s.name}</div><div class="count">${txt}</div></div>
       <span class="chev">›</span></button>`;
   }).join('');
-  return `<div class="head"><img class="home-icon" src="./home-icon.png" alt="Icona spesa"><h2>La nostra spesa</h2><p>Scegli dove andare</p></div>
-    <div class="stores">${cards}</div>${status()}<div class="disclaimer">registered da vinsDOTit v.2.2</div>${toast()}`;
+  return `<div class="head"><img class="home-icon" src="./home-icon.png" alt="Icona spesa"><h2>La nostra spesa</h2><p>Scegli dove andare</p>${meChip()}</div>
+    <div class="stores">${cards}</div>${status()}<div class="disclaimer">registered da vinsDOTit v.2.3</div>${toast()}`;
 }
 
 function openStore(id){store=id;render();window.scrollTo(0,0)}
 function goHome(){store=null;render()}
 
+function byTag(x){
+  const c=x.added_by&&colorOf(x.added_by);
+  return c?`<span class="by" style="color:${c}">${esc(x.added_by)}</span>`:'';
+}
+
 function itemsHtml(list,memo){
   if(!list.length)return `<div class="empty"><div class="empty-ico">${memo?'📝':'🛒'}</div>${memo?'Memo vuoto':'Lista vuota'}<br><small>${memo?'Scrivi la prima voce.':'Aggiungi il primo prodotto.'}</small></div>`;
   return list.map(x=>memo
-    ?`<div class="item memo"><span class="dot"></span><span class="txt">${esc(x.item)}</span><button class="trash" aria-label="Elimina" onclick="removeItem(${x.id})">✕</button></div>`
-    :`<div class="item ${x.checked?'checked':''}"><button class="check" aria-label="Seleziona" onclick="toggle(${x.id},${x.checked})"></button><span class="txt" onclick="toggle(${x.id},${x.checked})">${esc(x.item)}</span><button class="trash" aria-label="Elimina" onclick="removeItem(${x.id})">✕</button></div>`
+    ?`<div class="item memo"><span class="txt"><span class="nm">${esc(x.item)}</span>${byTag(x)}</span><button class="trash" aria-label="Elimina" onclick="removeItem(${x.id})">✕</button></div>`
+    :`<div class="item ${x.checked?'checked':''}"><button class="check" aria-label="Seleziona" onclick="toggle(${x.id},${x.checked})"></button><span class="txt" onclick="toggle(${x.id},${x.checked})"><span class="nm">${esc(x.item)}</span>${byTag(x)}</span><button class="trash" aria-label="Elimina" onclick="removeItem(${x.id})">✕</button></div>`
   ).join('');
 }
 
@@ -146,12 +207,17 @@ function list(){
 }
 
 function render(){
-  const old=document.getElementById('newitem'),
-    keep=old?{v:old.value,f:document.activeElement===old}:null,
-    sy=window.scrollY;
-  document.getElementById('app').innerHTML=`<div class="app">${store?list():home()}</div>`;
-  const e=document.getElementById('newitem');
-  if(e&&keep){e.value=keep.v;if(keep.f)e.focus({preventScroll:true});updateSuggestions()}
+  const ids=['newitem','username'],keep={};
+  ids.forEach(i=>{const el=document.getElementById(i);if(el)keep[i]={v:el.value,f:document.activeElement===el}});
+  const sy=window.scrollY;
+  document.getElementById('app').innerHTML=`<div class="app">${store?list():home()}</div>${editingName?nameModal():''}`;
+  ids.forEach(i=>{
+    const el=document.getElementById(i);
+    if(el&&keep[i]){el.value=keep[i].v;if(keep[i].f)el.focus({preventScroll:true})}
+  });
+  const u=document.getElementById('username');
+  if(u&&!keep.username){u.focus();u.select()}
+  if(store)updateSuggestions();
   window.scrollTo(0,sy);
 }
 

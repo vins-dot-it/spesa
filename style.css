@@ -53,13 +53,15 @@ button:active{transform:scale(.97)}
 
 /* ---- voci ---- */
 .item{display:flex;align-items:center;gap:13px;background:var(--surface);padding:14px 14px 14px 16px;border-radius:18px;margin:8px 0;box-shadow:var(--shadow);transition:opacity .2s}
-.check{width:26px;height:26px;border:2px solid var(--faint);border-radius:50%;background:transparent;flex:0 0 auto;display:grid;place-items:center;padding:0}
+.check{width:28px;height:28px;border:2.5px solid var(--faint);border-radius:8px;background:transparent;flex:0 0 auto;display:grid;place-items:center;padding:0}
 .checked .check{background:var(--green);border-color:var(--green)}
 .checked .check:after{content:'✓';color:#fff;font-weight:900;font-size:14px}
 .checked{opacity:.75}
-.checked .txt{text-decoration:line-through;color:var(--faint)}
-.txt{flex:1;font-size:16px;line-height:1.35;word-break:break-word}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:0 0 auto;margin:0 4px 0 2px}
+.checked .nm{text-decoration:line-through;color:var(--faint);font-weight:700}.checked .by{opacity:.55}
+.txt{flex:1;line-height:1.3;word-break:break-word;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:9px}
+.nm{font-size:19px;font-weight:800;letter-spacing:-.01em}
+.by{font-size:13px;font-weight:700;letter-spacing:.01em}
+.item.memo{padding-left:18px}
 .trash{border:0;background:none;color:var(--faint);font-size:18px;width:34px;height:34px;border-radius:50%}
 .trash:active{background:#fee2e2;color:#dc2626}
 .empty{text-align:center;color:var(--faint);padding:50px 10px;line-height:1.5}
@@ -85,3 +87,16 @@ button:active{transform:scale(.97)}
 @media (prefers-color-scheme:dark){.ok{color:#4ade80}.bad{color:#f87171}}
 .disclaimer{text-align:center;margin-top:7px;color:var(--faint);font-size:10px}
 .toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:50;width:max-content;max-width:calc(100% - 32px);background:#0f172a;color:#fff;padding:12px 17px;border-radius:14px;box-shadow:0 7px 30px #0003;font-size:14px;font-weight:700;text-align:center}
+
+/* ---- utente ---- */
+.me{display:inline-flex;align-items:center;gap:8px;margin-top:14px;border:0;background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:999px;font-size:14px;font-weight:700;box-shadow:var(--shadow)}
+.me i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.me span{color:var(--faint);font-weight:600;font-size:12px}
+.overlay{position:fixed;inset:0;z-index:100;background:#0f172a99;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:grid;place-items:center;padding:20px}
+.modal{width:100%;max-width:360px;background:var(--surface);border-radius:26px;padding:26px 22px 20px;box-shadow:0 20px 60px #0005;display:grid;gap:12px}
+.modal h3{margin:0;font-size:22px;font-weight:800}
+.modal p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
+.modal input{border:1.5px solid var(--line);background:transparent;color:var(--ink);border-radius:15px;padding:14px;font-size:17px;outline:none}
+.modal input:focus{border-color:var(--green)}
+.modal .primary{border:0;background:var(--green);color:#fff;border-radius:15px;padding:14px;font-size:16px;font-weight:800}
+.modal .ghost{border:0;background:transparent;color:var(--muted);padding:8px;font-size:14px;font-weight:600}
